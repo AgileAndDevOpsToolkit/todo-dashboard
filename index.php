@@ -280,7 +280,7 @@ function renderMarkdown(string $markdown): string
         }
     };
 
-    foreach ($lines as $line) {
+    foreach ($lines as $index => $line) {
         $trimmed = trim($line);
 
         if ($trimmed === '') {
@@ -289,13 +289,8 @@ function renderMarkdown(string $markdown): string
         }
 
         if (preg_match('/^(#{1,6})\s+(.+)$/u', $trimmed, $match)) {
+            // Les titres (ex. "TODO", "Nouvelles features :") ne sont pas affichés, seuls les items comptent.
             $closeList();
-
-            // On garde les titres des TODO visuellement en dessous du nom du dépôt.
-            $level = min(6, max(3, strlen($match[1]) + 2));
-            $html[] = '<h' . $level . '>'
-                . renderInlineMarkdown($match[2])
-                . '</h' . $level . '>';
             continue;
         }
 
@@ -309,6 +304,12 @@ function renderMarkdown(string $markdown): string
             continue;
         }
 
+        // Une ligne courte type "TODO" ou "Nouvelles features :" juste avant une liste est un titre implicite : on l'ignore.
+        $bareLabel = trim($trimmed, "*_ \t");
+        if (preg_match('/^[\p{L}0-9\s]+:?$/u', $bareLabel) && isNextLineListItem($lines, $index)) {
+            continue;
+        }
+
         $closeList();
         $html[] = '<p>' . renderInlineMarkdown($trimmed) . '</p>';
     }
@@ -316,6 +317,24 @@ function renderMarkdown(string $markdown): string
     $closeList();
 
     return implode("\n", $html);
+}
+
+/**
+ * Vérifie si la prochaine ligne non vide est un item de liste Markdown.
+ */
+function isNextLineListItem(array $lines, int $index): bool
+{
+    for ($i = $index + 1; $i < count($lines); $i++) {
+        $next = trim($lines[$i]);
+
+        if ($next === '') {
+            continue;
+        }
+
+        return (bool) preg_match('/^\s*[-*+]\s+.+$/u', $lines[$i]);
+    }
+
+    return false;
 }
 
 function h(string $value): string
